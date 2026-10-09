@@ -1,19 +1,18 @@
 const express = require('express');
+const cors = require('cors');
 const app = express();
 
+app.use(cors()); // Habilitar CORS para que el index.html pueda consultar la API
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 app.use(express.text());
 
-// Almacenar temporalmente el último pago recibido
 let ultimaTransaccion = { monto: null, pagador: null, id: 0 };
 
-// Ruta para que la página web consulte si hay un pago nuevo
 app.get('/api/ultima-transaccion', (req, res) => {
     res.json(ultimaTransaccion);
 });
 
-// Webhook que recibe los correos de CloudMailin
 app.post('/api/nequi-webhook', (req, res) => {
     console.log("==========================================");
     console.log("📩 [NUEVO CORREO RECIBIDO DE NEQUI]");
@@ -34,7 +33,6 @@ app.post('/api/nequi-webhook', (req, res) => {
         console.log(`💵 Monto: $${monto} COP`);
         console.log(`👤 Pagador: ${pagador}`);
 
-        // Actualizar la última transacción con un ID único basado en el tiempo
         ultimaTransaccion = {
             monto: monto,
             pagador: pagador,
