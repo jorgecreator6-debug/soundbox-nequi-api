@@ -5,21 +5,12 @@ app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 app.use(express.text());
 
-// Lista de clientes conectados (navegadores abiertos)
-let clientesSSE = [];
+// Almacenar temporalmente el último pago recibido
+let ultimaTransaccion = { monto: null, pagador: null, id: 0 };
 
-// Ruta para que el navegador se conecte y escuche en tiempo real
-app.get('/api/events', (req, res) => {
-    res.setHeader('Content-Type', 'text/event-stream');
-    res.setHeader('Cache-Control', 'no-cache');
-    res.setHeader('Connection', 'keep-alive');
-    res.flushHeaders();
-
-    clientesSSE.push(res);
-
-    req.on('close', () => {
-        clientesSSE = clientesSSE.filter(client => client !== res);
-    });
+// Ruta para que la página web consulte si hay un pago nuevo
+app.get('/api/ultima-transaccion', (req, res) => {
+    res.json(ultimaTransaccion);
 });
 
 // Webhook que recibe los correos de CloudMailin
@@ -43,11 +34,12 @@ app.post('/api/nequi-webhook', (req, res) => {
         console.log(`💵 Monto: $${monto} COP`);
         console.log(`👤 Pagador: ${pagador}`);
 
-        // Enviar la alerta en tiempo real a todas las pestañas del navegador conectadas
-        const datosAlerta = JSON.stringify({ monto, pagador });
-        clientesSSE.forEach(client => {
-            client.write(`data: ${datosAlerta}\n\n`);
-        });
+        // Actualizar la última transacción con un ID único basado en el tiempo
+        ultimaTransaccion = {
+            monto: monto,
+            pagador: pagador,
+            id: Date.now()
+        };
 
     } else {
         console.log("⚠️ No se identificaron patrones de pago en el contenido recibido.");
