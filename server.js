@@ -1,73 +1,44 @@
 const express = require('express');
 const app = express();
 
+// Middlewares para procesar JSON, formularios URL-encoded y texto plano de CloudMailin
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
+app.use(express.text());
 
-// Ruta de salud para que Render sepa que el servicio está activo
-app.get('/', (req, res) => {
-  res.send('Servidor SoundBox Nequi funcionando correctamente.');
-});
-
-// Endpoint principal para recibir las notificaciones de correo
 app.post('/api/nequi-webhook', (req, res) => {
-  console.log("=== EMAIL COMPLETO ===", JSON.stringify(req.body));
-  try {
-    // Acepta 'rawEmail', 'body', 'text' o el cuerpo completo enviado por el servicio de correo
-    const emailText = req.body.rawEmail || req.body.text || req.body.body || JSON.stringify(req.body);
+    console.log("==========================================");
+    console.log("📩 [NUEVO CORREO RECIBIDO]");
+    console.log("Timestamp:", new Date().toISOString());
 
-    console.log('\n==========================================');
-    console.log('📩 [NUEVO CORREO RECIBIDO DE NEQUI]');
-    console.log('Timestamp:', new Date().toISOString());
+    // Imprimir todo el contenido que envía CloudMailin
+    console.log("=== BODY COMPLETO ===", JSON.stringify(req.body, null, 2));
 
-    let monto = null;
-    let pagador = 'Desconocido';
-    let referencia = 'N/A';
+    // Capturar el contenido de texto (sea de CloudMailin o directo)
+    const contenidoTexto = req.body?.plain || req.body?.html || (typeof req.body === 'string' ? req.body : JSON.stringify(req.body));
+    console.log("=== CONTENIDO TEXTO ===", contenidoTexto);
 
-    // 1. Patrón para Negocios / QR Bre-B (Ejemplo: "Venta exitosa por $100 ... Monto:$ 100 ... Pagador:VALENTINA RIVERO")
-    const montoNegocioMatch = emailText.match(/Monto:\s*\$?\s*([\d\.,]+)/i) || emailText.match(/Venta exitosa por\s*\$?\s*([\d\.,]+)/i);
-    const pagadorNegocioMatch = emailText.match(/Pagador:\s*([^B\n\r]+)/i);
-    const refNegocioMatch = emailText.match(/Referencia:\s*([A-Z0-9]+)/i);
+    // Intentar extraer patrones de pago de Nequi
+    const montoMatch = contenidoTexto.match(/\$(\d+[\d.,]*)\s*COP/i) || contenidoTexto.match(/\$(\d+[\d.,]*)/);
+    const pagadorMatch = contenidoTexto.match(/por\s+([A-Z\s]+)\s+a\s+tu/i) || contenidoTexto.match(/de\s+([A-Z\s]+)\b/i);
+    const refMatch = contenidoTexto.match(/M\d+/i) || contenidoTexto.match(/referencia:\s*(\w+)/i);
 
-    // 2. Patrón para transferencias personales (Ejemplo: "JUAN PEREZ te envió \$ 10.000")
-    const transferMatch = emailText.match(/(.+?)\s+te envi[oó]\s+\$?\s*([\d\.,]+)/i);
-
-    if (montoNegocioMatch) {
-      monto = parseFloat(montoNegocioMatch[1].replace(/\./g, '').replace(',', '.'));
-      if (pagadorNegocioMatch) pagador = pagadorNegocioMatch[1].trim();
-      if (refNegocioMatch) referencia = refNegocioMatch[1].trim();
-    } else if (transferMatch) {
-      pagador = transferMatch[1].trim();
-      monto = parseFloat(transferMatch[2].replace(/\./g, '').replace(',', '.'));
-    }
-
-    if (monto) {
-      console.log('✅ [PAGO VALIDADO CORRECTAMENTE]');
-      console.log(`💵 Monto: $${monto} COP`);
-      console.log(`👤 Pagador: ${pagador}`);
-      console.log(`🔢 Referencia: ${referencia}`);
-
-      // TODO: Aquí se emitirá el evento MQTT hacia el SoundBox físico
-
-      return res.status(200).json({
-        success: true,
-        message: 'Notificación procesada con éxito',
-        data: { monto, pagador, referencia }
-      });
+    if (montoMatch) {
+        console.log("✅ [PAGO VALIDADO CORRECTAMENTE]");
+        console.log(`💵 Monto: $${montoMatch[1]} COP`);
+        if (pagadorMatch) console.log(`👤 Pagador: ${pagadorMatch[1].trim()}`);
+        if (refMatch) console.log(`🔢 Referencia: ${refMatch[0]}`);
     } else {
-      console.log('⚠️ No se identificaron patrones de pago en el contenido recibido.');
-      return res.status(200).json({
-        success: false,
-        message: 'El correo no contiene una estructura de pago reconocida'
-      });
+        console.log("⚠️ No se identificaron patrones de pago en el contenido recibido.");
     }
-  } catch (error) {
-    console.error('❌ Error procesando el correo:', error);
-    return res.status(500).json({ success: false, error: error.message });
-  }
+
+    console.log("==========================================");
+
+    // Responder siempre con 200 OK a CloudMailin
+    res.status(200).send("OK");
 });
 
-const PORT = process.env.PORT || 3000;
+const PORT = process.env.PORT || 10000;
 app.listen(PORT, () => {
-  console.log(`🚀 Servidor ejecutándose en el puerto ${PORT}`);
+    console.log(`🚀 Servidor ejecutándose en el puerto ${PORT}`);
 });
