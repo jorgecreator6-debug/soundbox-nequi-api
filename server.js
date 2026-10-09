@@ -1,40 +1,34 @@
 const express = require('express');
 const app = express();
 
-// Middlewares para procesar JSON, formularios URL-encoded y texto plano de CloudMailin
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 app.use(express.text());
 
 app.post('/api/nequi-webhook', (req, res) => {
     console.log("==========================================");
-    console.log("📩 [NUEVO CORREO RECIBIDO]");
+    console.log("📩 [NUEVO CORREO RECIBIDO DE NEQUI]");
     console.log("Timestamp:", new Date().toISOString());
 
-    // Imprimir todo el contenido que envía CloudMailin
-    console.log("=== BODY COMPLETO ===", JSON.stringify(req.body, null, 2));
+    const contenidoHtml = req.body?.html || req.body?.plain || (typeof req.body === 'string' ? req.body : JSON.stringify(req.body));
 
-    // Capturar el contenido de texto (sea de CloudMailin o directo)
-    const contenidoTexto = req.body?.plain || req.body?.html || (typeof req.body === 'string' ? req.body : JSON.stringify(req.body));
-    console.log("=== CONTENIDO TEXTO ===", contenidoTexto);
-
-    // Intentar extraer patrones de pago de Nequi
-    const montoMatch = contenidoTexto.match(/\$(\d+[\d.,]*)\s*COP/i) || contenidoTexto.match(/\$(\d+[\d.,]*)/);
-    const pagadorMatch = contenidoTexto.match(/por\s+([A-Z\s]+)\s+a\s+tu/i) || contenidoTexto.match(/de\s+([A-Z\s]+)\b/i);
-    const refMatch = contenidoTexto.match(/M\d+/i) || contenidoTexto.match(/referencia:\s*(\w+)/i);
+    // Extracción limpia usando patrones basados en la estructura visual de Nequi
+    const montoMatch = contenidoHtml.match(/Monto:<\/th>\s*<td[^>]*>\s*\$?\s*([\d.,]+)/i) || contenidoHtml.match(/Venta exitosa por\s*\$\s*([\d.,]+)/i);
+    const estadoMatch = contenidoHtml.match(/Estado:<\/th>\s*<td[^>]*>([^<]+)/i);
+    const pagadorMatch = contenidoHtml.match(/Pagador:<\/th>\s*<td[^>]*>([^<]+)/i);
+    const refMatch = contenidoHtml.match(/Referencia:<\/th>\s*<td[^>]*>([^<]+)/i);
 
     if (montoMatch) {
         console.log("✅ [PAGO VALIDADO CORRECTAMENTE]");
-        console.log(`💵 Monto: $${montoMatch[1]} COP`);
+        console.log(`💵 Monto: $${montoMatch[1].trim()} COP`);
+        if (estadoMatch) console.log(`📌 Estado: ${estadoMatch[1].trim()}`);
         if (pagadorMatch) console.log(`👤 Pagador: ${pagadorMatch[1].trim()}`);
-        if (refMatch) console.log(`🔢 Referencia: ${refMatch[0]}`);
+        if (refMatch) console.log(`🔢 Referencia: ${refMatch[1].trim()}`);
     } else {
         console.log("⚠️ No se identificaron patrones de pago en el contenido recibido.");
     }
 
     console.log("==========================================");
-
-    // Responder siempre con 200 OK a CloudMailin
     res.status(200).send("OK");
 });
 
