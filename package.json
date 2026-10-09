@@ -1,0 +1,12 @@
+{
+  "name": "soundbox-nequi-api",
+  "version": "1.0.0",
+  "description": "API Backend para procesar correos de Nequi y notificar al SoundBox",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js"
+  },
+  "dependencies": {
+    "express": "^4.19.2"
+  }
+}
