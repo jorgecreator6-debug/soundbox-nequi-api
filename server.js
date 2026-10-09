@@ -11,6 +11,7 @@ app.get('/', (req, res) => {
 
 // Endpoint principal para recibir las notificaciones de correo
 app.post('/api/nequi-webhook', (req, res) => {
+  console.log("=== EMAIL COMPLETO ===", JSON.stringify(req.body));
   try {
     // Acepta 'rawEmail', 'body', 'text' o el cuerpo completo enviado por el servicio de correo
     const emailText = req.body.rawEmail || req.body.text || req.body.body || JSON.stringify(req.body);
